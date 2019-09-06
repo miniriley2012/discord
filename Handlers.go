@@ -51,3 +51,14 @@ func (h GuildMemberUpdateHandler) Handle(client *Client, data map[string]interfa
 	h(client, update)
 	return nil
 }
+
+type GuildMemberAddHandler func(client *Client, member GuildMember)
+
+func (h GuildMemberAddHandler) Handle(client *Client, data map[string]interface{}) error {
+	var member GuildMember
+	if err := mapstructure.Decode(data, &member); err != nil {
+		return err
+	}
+	h(client, member)
+	return nil
+}

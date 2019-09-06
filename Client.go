@@ -1,6 +1,7 @@
 package discord
 
 import (
+	"bytes"
 	"encoding/json"
 	"errors"
 	"github.com/gorilla/websocket"
@@ -22,6 +23,42 @@ type User struct {
 	PremiumType   int    `json:"premium_type"`
 }
 
+type RolePerm int64
+
+// Role Permissions
+const (
+	PermCreateInstantInvite = 0x00000001
+	PermKickMembers         = 0x2
+	PermBanMembers          = 0x4
+	PermAdministrator       = 0x8
+	PermManageChannels      = 0x10
+	PermManageGuild         = 0x20
+	PermAddReactions        = 0x40
+	PermViewAuditLog        = 0x80
+	PermViewChannel         = 0x400
+	PermSendMessages        = 0x800
+	PermSendTTSMessages     = 0x1000
+	PermManageMessages      = 0x2000
+	PermEmbedLinks          = 0x4000
+	PermAttachFiles         = 0x8000
+	PermReadMessageHistory  = 0x10000
+	PermMentionEveryone     = 0x20000
+	PermUseExternalEmojis   = 0x40000
+	PermConnect             = 0x100000
+	PermSpeak               = 0x100000
+	PermMuteMembers         = 0x400000
+	PermDeafenMembers       = 0x800000
+	PermMoveMembers         = 0x1000000
+	PermUseVAD              = 0x2000000
+	PermPrioritySpeaker     = 0x100
+	PermStream              = 0x200
+	PermChangeNickname      = 0x4000000
+	PermManageNicknames     = 0x8000000
+	PermManageRoles         = 0x10000000
+	PermManageWebhooks      = 0x20000000
+	PermManageEmojis        = 0x40000000
+)
+
 // Role is the Go representation of Role in Discord's API.
 type Role struct {
 	ID          string `json:"id"`
@@ -32,6 +69,27 @@ type Role struct {
 	Permissions int    `json:"permissions"`
 	Managed     bool   `json:"managed"`
 	Mentionable bool   `json:"mentionable"`
+}
+
+type Roles []Role
+
+func NewRole(id string) Role {
+	if v, ok := roles[id]; ok {
+		return v
+	}
+	return Role{ID: id}
+}
+
+func (r *Roles) UnmarshalJSON(data []byte) error {
+	var IDs []string
+	if err := json.Unmarshal(data, &IDs); err != nil {
+		return err
+	}
+
+	for _, id := range IDs {
+		*r = append(*r, NewRole(id))
+	}
+	return nil
 }
 
 type ActivityType int
@@ -116,12 +174,67 @@ type Presence struct {
 // GuildMember is the Go representation of GuildMember in the Discord API.
 type GuildMember struct {
 	User         `json:"user"`
+	GuildID      string    `json:"guild_id" mapstructure:"guild_id"`
 	Nickname     string    `json:"nick"`
-	Roles        []Role    `json:"roles"`
+	Roles        Roles     `json:"roles"`
 	JoinedAt     time.Time `json:"joined_at"`
 	PremiumSince time.Time `json:"premium_since"`
 	Deaf         bool      `json:"deaf"`
 	Mute         bool      `json:"mute"`
+}
+
+func (g GuildMember) AddRole(client *Client, id string) error {
+	var role *Role
+
+	guild, err := client.GetGuild(g.GuildID)
+	if err != nil {
+		return err
+	}
+
+	for _, r := range guild.Roles {
+		if r.ID == id {
+			role = &r
+			break
+		}
+	}
+
+	if role == nil {
+		return errors.New("role not found on this server")
+	}
+
+	g.Roles = append(g.Roles, *role)
+
+	var roles []string
+	for _, r := range g.Roles {
+		roles = append(roles, r.ID)
+	}
+
+	b, _ := json.Marshal(struct {
+		Roles []string `json:"roles"`
+	}{roles})
+
+	req, err := http.NewRequest(http.MethodPatch, "https://discordapp.com/api/v6/guilds/"+g.GuildID+"/members/"+g.ID, bytes.NewReader(b))
+	if err != nil {
+		return err
+	}
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("Authorization", "Bot "+client.Token)
+
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		return err
+	}
+
+	return resp.Body.Close()
+}
+
+func (g *GuildMember) HasPermission(perm RolePerm) bool {
+	for _, r := range g.Roles {
+		if RolePerm(r.Permissions)&perm == perm {
+			return true
+		}
+	}
+	return false
 }
 
 // Client interacts with the Discord API.
@@ -134,6 +247,7 @@ type Client struct {
 	Token             string
 	handlers          map[GatewayEventType]EventHandler
 	channelStore      ChannelStore
+	guildStore        GuildStore
 }
 
 // Creates a new Discord Client.
@@ -142,6 +256,7 @@ func NewClient(token string) *Client {
 		Token:        token,
 		handlers:     map[GatewayEventType]EventHandler{},
 		channelStore: ChannelStore{},
+		guildStore:   GuildStore{},
 	}
 }
 
@@ -369,6 +484,33 @@ func readChannelResponse(r io.Reader) (c Channel, err error) {
 	return
 }
 
+func readGuildResponse(r io.Reader) (g Guild, err error) {
+	b, err := ioutil.ReadAll(r)
+	if err != nil {
+		return
+	}
+
+	var i map[string]interface{}
+
+	if err = json.Unmarshal(b, &i); err != nil {
+		return
+	}
+
+	if m, ok := i["message"]; ok {
+		return g, errors.New(m.(string))
+	}
+
+	if id, ok := i["guild_id"].([]interface{}); ok {
+		return g, errors.New(id[0].(string))
+	}
+
+	if err = json.Unmarshal(b, &g); err != nil {
+		return
+	}
+
+	return
+}
+
 // GetChannel returns a channel by ID
 func (c *Client) GetChannel(id string) (ch Channel, err error) {
 	channel := c.channelStore.Get(id)
@@ -399,5 +541,43 @@ func (c *Client) GetChannel(id string) (ch Channel, err error) {
 		ch = *channel
 	}
 	ch.client = c
+	return
+}
+
+// GetGuild returns a guild by ID
+func (c *Client) GetGuild(id string) (g Guild, err error) {
+	guild := c.guildStore.Get(id)
+	if guild == nil {
+		var req *http.Request
+		var resp *http.Response
+		var guild Guild
+
+		req, err = http.NewRequest(http.MethodGet, "https://discordapp.com/api/v6/guilds/"+id, http.NoBody)
+		if err != nil {
+			return
+		}
+		req.Header.Set("Authorization", "Bot "+c.Token)
+
+		resp, err = http.DefaultClient.Do(req)
+		if err != nil {
+			return
+		}
+		defer resp.Body.Close()
+
+		guild, err = readGuildResponse(resp.Body)
+		if err != nil {
+			return
+		}
+
+		for _, r := range guild.Roles {
+			roles[r.ID] = r
+		}
+
+		c.guildStore.Add(guild)
+		g = guild
+	} else {
+		g = *guild
+	}
+	g.client = c
 	return
 }
