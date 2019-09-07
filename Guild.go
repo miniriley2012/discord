@@ -16,32 +16,32 @@ type Guild struct {
 	Name                        string
 	Icon                        string
 	Owner                       bool
-	OwnerID                     string `mapstructure:"owner_id"`
+	OwnerID                     string `json:"owner_id" mapstructure:"owner_id"`
 	Permissions                 int
 	Region                      string
-	AFKChannelID                string `mapstructure:"afk_channel_id"`
-	AFKTimeout                  int    `mapstructure:"afk_timeout"`
-	EmbedEnabled                bool   `mapstructure:"embed_enabled"`
-	EmbedChannelID              string `mapstructure:"embed_channel_id"`
-	VerificationLevel           int    `mapstructure:"verification_level"`
-	DefaultMessageNotifications int    `mapstructure:"default_message_notifications"`
-	ExplicitContentFilter       int    `mapstructure:"explicit_content_filter"`
+	AFKChannelID                string `json:"afk_channel_id" mapstructure:"afk_channel_id"`
+	AFKTimeout                  int    `json:"afk_timeout" mapstructure:"afk_timeout"`
+	EmbedEnabled                bool   `json:"embed_enabled" mapstructure:"embed_enabled"`
+	EmbedChannelID              string `json:"embed_channel_id" mapstructure:"embed_channel_id"`
+	VerificationLevel           int    `json:"verification_level" mapstructure:"verification_level"`
+	DefaultMessageNotifications int    `json:"default_message_notifications" mapstructure:"default_message_notifications"`
+	ExplicitContentFilter       int    `json:"explicit_content_filter" mapstructure:"explicit_content_filter"`
 	Roles                       []Role
 	Emojis                      []Emoji
 	Features                    []string
-	MFALevel                    int    `mapstructure:"mfa_level"`
-	ApplicationID               string `mapstructure:"application_id"`
-	WidgetEnabled               bool   `mapstructure:"widget_enabled"`
-	WidgetChannelID             string `mapstructure:"widget_channel_id"`
-	SystemChannelID             string `mapstructure:"system_channel_id"`
-	MaxPresences                int    `mapstructure:"max_presences"`
-	MaxMembers                  int    `mapstructure:"max_members"`
-	VanityURLCode               string `mapstructure:"vanity_url_code"`
+	MFALevel                    int    `json:"mfa_level" mapstructure:"mfa_level"`
+	ApplicationID               string `json:"application_id" mapstructure:"application_id"`
+	WidgetEnabled               bool   `json:"widget_enabled" mapstructure:"widget_enabled"`
+	WidgetChannelID             string `json:"widget_channel_id" mapstructure:"widget_channel_id"`
+	SystemChannelID             string `json:"system_channel_id" mapstructure:"system_channel_id"`
+	MaxPresences                int    `json:"max_presences" mapstructure:"max_presences"`
+	MaxMembers                  int    `json:"max_members" mapstructure:"max_members"`
+	VanityURLCode               string `json:"vanity_url_code" mapstructure:"vanity_url_code"`
 	Description                 string
 	Banner                      string
-	PremiumTier                 int    `mapstructure:"premium_tier"`
-	PremiumSubscriptionCount    int    `mapstructure:"premium_subscription_count"`
-	PreferredLocale             string `mapstructure:"preferred_locale"`
+	PremiumTier                 int    `json:"premium_tier "mapstructure:"premium_tier"`
+	PremiumSubscriptionCount    int    `json:"premium_subscription_count "mapstructure:"premium_subscription_count"`
+	PreferredLocale             string `json:"preferred_locale "mapstructure:"preferred_locale"`
 	client                      *Client
 }
 
